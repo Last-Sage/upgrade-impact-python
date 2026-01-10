@@ -461,5 +461,364 @@ def scan_security(
         raise typer.Exit(1)
 
 
+@app.command()
+def sbom(
+    project_path: Path = typer.Option(
+        ".",
+        "--project",
+        "-p",
+        help="Path to project directory",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Path to output file",
+    ),
+    sbom_format: str = typer.Option(
+        "cyclonedx",
+        "--format",
+        "-f",
+        help="SBOM format: cyclonedx, spdx",
+    ),
+) -> None:
+    """Generate Software Bill of Materials (SBOM)."""
+    
+    from upgrade_analyzer.parsers.base import DependencyParser
+    from upgrade_analyzer.sbom import SBOMGenerator
+    
+    project_path = project_path.resolve()
+    
+    # Auto-detect and parse dependencies
+    detected = DependencyParser.auto_detect_in_directory(project_path)
+    if not detected:
+        console.print("[red]Error: No dependency file found[/red]")
+        raise typer.Exit(1)
+    
+    parser_class = DependencyParser.detect_parser(detected[0])
+    parser = parser_class(detected[0])
+    dependencies = parser.parse()
+    
+    generator = SBOMGenerator(
+        project_name=project_path.name,
+        project_version="0.0.0",
+    )
+    
+    if sbom_format.lower() == "spdx":
+        sbom_str = generator.generate_spdx(dependencies, output)
+    else:
+        sbom_str = generator.generate_cyclonedx(dependencies, output)
+    
+    if output:
+        console.print(f"[green]✅ SBOM saved to: {output}[/green]")
+    else:
+        console.print(sbom_str)
+
+
+@app.command()
+def health(
+    project_path: Path = typer.Option(
+        ".",
+        "--project",
+        "-p",
+        help="Path to project directory",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Path to output markdown file",
+    ),
+) -> None:
+    """Analyze dependency health scores."""
+    
+    from upgrade_analyzer.parsers.base import DependencyParser
+    from upgrade_analyzer.health import HealthScorer
+    
+    project_path = project_path.resolve()
+    
+    # Parse dependencies
+    detected = DependencyParser.auto_detect_in_directory(project_path)
+    if not detected:
+        console.print("[red]Error: No dependency file found[/red]")
+        raise typer.Exit(1)
+    
+    parser_class = DependencyParser.detect_parser(detected[0])
+    parser = parser_class(detected[0])
+    dependencies = parser.parse()
+    
+    console.print(f"\n[bold cyan]📊 Calculating health scores for {len(dependencies)} packages...[/bold cyan]\n")
+    
+    scorer = HealthScorer()
+    metrics_list = []
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("[green]Scoring...", total=len(dependencies))
+        
+        for dep in dependencies:
+            metrics = scorer.calculate_health(dep.name)
+            metrics_list.append(metrics)
+            
+            # Show result
+            grade_emoji = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⛔"}.get(metrics.health_grade, "❓")
+            console.print(f"  {grade_emoji} {dep.name}: {metrics.health_grade} ({metrics.health_score:.0f}/100)")
+            
+            progress.advance(task)
+    
+    scorer.close()
+    
+    # Generate report
+    report = scorer.generate_report(metrics_list)
+    
+    if output:
+        output.write_text(report)
+        console.print(f"\n[green]✅ Health report saved to: {output}[/green]")
+
+
+@app.command()
+def licenses(
+    project_path: Path = typer.Option(
+        ".",
+        "--project",
+        "-p",
+        help="Path to project directory",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Path to output markdown file",
+    ),
+    deny: list[str] = typer.Option(
+        None,
+        "--deny",
+        help="Denied licenses (can be repeated)",
+    ),
+) -> None:
+    """Audit dependency licenses."""
+    
+    from upgrade_analyzer.parsers.base import DependencyParser
+    from upgrade_analyzer.sbom import LicenseAuditor
+    
+    project_path = project_path.resolve()
+    
+    # Parse dependencies
+    detected = DependencyParser.auto_detect_in_directory(project_path)
+    if not detected:
+        console.print("[red]Error: No dependency file found[/red]")
+        raise typer.Exit(1)
+    
+    parser_class = DependencyParser.detect_parser(detected[0])
+    parser = parser_class(detected[0])
+    dependencies = parser.parse()
+    
+    console.print(f"\n[bold cyan]📜 Auditing licenses for {len(dependencies)} packages...[/bold cyan]\n")
+    
+    auditor = LicenseAuditor()
+    
+    denied_set = {d.upper() for d in (deny or [])}
+    
+    result = auditor.audit_licenses(dependencies, denied_licenses=denied_set or None)
+    report = auditor.generate_report(result, output)
+    
+    auditor.close()
+    
+    # Display summary
+    console.print(f"[bold]Summary:[/bold]")
+    console.print(f"  Permissive: {result['summary']['permissive']}")
+    console.print(f"  Copyleft: {result['summary']['copyleft']}")
+    console.print(f"  Unknown: {result['summary']['unknown']}")
+    
+    if result['violations']:
+        console.print(f"\n[red]❌ {len(result['violations'])} license violations found![/red]")
+        for v in result['violations']:
+            console.print(f"  • {v['package']}: {v['license']} - {v['reason']}")
+        raise typer.Exit(1)
+    
+    if result['warnings']:
+        console.print(f"\n[yellow]⚠️ {len(result['warnings'])} warnings[/yellow]")
+    
+    if output:
+        console.print(f"\n[green]✅ License report saved to: {output}[/green]")
+
+
+@app.command()
+def monorepo(
+    root_path: Path = typer.Option(
+        ".",
+        "--root",
+        "-r",
+        help="Path to monorepo root",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Path to output markdown file",
+    ),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Use only cached data",
+    ),
+) -> None:
+    """Analyze dependencies across a monorepo."""
+    
+    from upgrade_analyzer.enterprise import MonorepoAnalyzer
+    
+    root_path = root_path.resolve()
+    
+    console.print(f"\n[bold cyan]🏢 Analyzing monorepo at {root_path}...[/bold cyan]\n")
+    
+    analyzer = MonorepoAnalyzer(root_path)
+    projects = analyzer.discover_projects()
+    
+    if not projects:
+        console.print("[yellow]No projects found[/yellow]")
+        raise typer.Exit(0)
+    
+    console.print(f"[bold]Discovered {len(projects)} projects:[/bold]")
+    for project in projects:
+        console.print(f"  📁 {project['name']} ({project['relative_path']})")
+    
+    console.print("\n[bold]Analyzing...[/bold]\n")
+    
+    results = analyzer.analyze_all(offline=offline)
+    
+    # Show summary
+    for project_name, reports in results.items():
+        critical = sum(1 for r in reports if r.risk_score.severity.value == "critical")
+        high = sum(1 for r in reports if r.risk_score.severity.value == "high")
+        
+        if critical:
+            console.print(f"  🔴 {project_name}: {len(reports)} deps, {critical} critical")
+        elif high:
+            console.print(f"  🟠 {project_name}: {len(reports)} deps, {high} high")
+        else:
+            console.print(f"  🟢 {project_name}: {len(reports)} deps")
+    
+    # Shared dependencies
+    shared = analyzer.find_shared_dependencies()
+    if shared:
+        console.print(f"\n[bold]Shared dependencies ({len(shared)}):[/bold]")
+        for pkg, used_by in list(shared.items())[:10]:
+            console.print(f"  • {pkg}: used by {len(used_by)} projects")
+    
+    # Generate report
+    report = analyzer.generate_report(results)
+    
+    if output:
+        output.write_text(report)
+        console.print(f"\n[green]✅ Monorepo report saved to: {output}[/green]")
+
+
+@app.command(name="ai-analyze")
+def ai_analyze(
+    project_path: Path = typer.Option(
+        ".",
+        "--project",
+        "-p",
+        help="Path to project directory",
+    ),
+    package: str = typer.Option(
+        ...,
+        "--package",
+        help="Package to analyze",
+    ),
+    from_version: str = typer.Option(
+        ...,
+        "--from",
+        help="Current version",
+    ),
+    to_version: str = typer.Option(
+        ...,
+        "--to",
+        help="Target version",
+    ),
+) -> None:
+    """AI-powered changelog analysis (requires OPENAI_API_KEY or ANTHROPIC_API_KEY)."""
+    
+    from upgrade_analyzer.intelligence.llm_analyzer import LLMChangelogAnalyzer
+    from upgrade_analyzer.intelligence.changelog_fetcher import ChangelogFetcher
+    
+    console.print(f"\n[bold cyan]🤖 AI Analysis: {package} {from_version} → {to_version}[/bold cyan]\n")
+    
+    # Check if LLM is available
+    llm = LLMChangelogAnalyzer()
+    
+    if not llm.is_available:
+        console.print("[red]Error: No LLM API key found[/red]")
+        console.print("[dim]Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable[/dim]")
+        raise typer.Exit(1)
+    
+    console.print(f"[dim]Using provider: {llm.provider}[/dim]\n")
+    
+    # Fetch changelog
+    fetcher = ChangelogFetcher()
+    entries = fetcher.fetch_changelog(package, from_version, to_version)
+    fetcher.close()
+    
+    if not entries:
+        console.print("[yellow]No changelog entries found[/yellow]")
+        raise typer.Exit(0)
+    
+    console.print("[bold]Analyzing with AI...[/bold]\n")
+    
+    result = llm.analyze_changelog(package, from_version, to_version, entries)
+    llm.close()
+    
+    if not result:
+        console.print("[red]AI analysis failed[/red]")
+        raise typer.Exit(1)
+    
+    # Display results
+    console.print(f"[bold]📝 Summary[/bold]\n{result.summary}\n")
+    
+    if result.breaking_changes:
+        console.print("[bold]💥 Breaking Changes[/bold]")
+        for bc in result.breaking_changes:
+            console.print(f"  • {bc}")
+        console.print()
+    
+    if result.migration_steps:
+        console.print("[bold]📋 Migration Steps[/bold]")
+        for i, step in enumerate(result.migration_steps, 1):
+            console.print(f"  {i}. {step}")
+        console.print()
+    
+    console.print(f"[bold]⚠️ Risk Assessment[/bold]: {result.risk_assessment}")
+    console.print(f"[bold]⏱️ Estimated Effort[/bold]: {result.estimated_effort}")
+    
+    if result.affected_areas:
+        console.print(f"[bold]📍 Affected Areas[/bold]: {', '.join(result.affected_areas)}")
+
+
+@app.command(name="init-policies")
+def init_policies(
+    output: Path = typer.Option(
+        ".upgrade-policies.toml",
+        "--output",
+        "-o",
+        help="Path to save example policies file",
+    ),
+) -> None:
+    """Create example risk policies configuration file."""
+    
+    from upgrade_analyzer.enterprise import create_example_policies_file
+    
+    output = Path(output)
+    create_example_policies_file(output)
+    
+    console.print(f"[green]✅ Created example policies file: {output}[/green]")
+    console.print("[dim]Edit this file to customize your risk policies[/dim]")
+
+
 if __name__ == "__main__":
     app()
+
