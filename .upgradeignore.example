@@ -1,0 +1,14 @@
+# Example: Analyze with upgradeignore
+
+# This file demonstrates how to ignore certain packages
+# Format: package name or package==version
+
+# Always safe to upgrade (tested)
+pytest
+black
+
+# Known safe version
+numpy==1.26.0
+
+# Skip analysis for internal packages
+my-internal-lib

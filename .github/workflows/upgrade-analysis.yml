@@ -1,0 +1,143 @@
+name: Upgrade Impact Analysis
+
+on:
+  pull_request:
+    paths:
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "Pipfile"
+      - "Pipfile.lock"
+      - "poetry.lock"
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Mondays
+    - cron: "0 0 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  analyze-upgrades:
+    runs-on: ubuntu-latest
+    name: Analyze Dependency Upgrades
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install upgrade-analyzer
+        run: pip install upgrade-impact-analyzer
+
+      - name: Run analysis
+        id: analyze
+        run: |
+          upgrade-analyzer analyze \
+            --format sarif \
+            --output results.sarif \
+            --security
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+          category: upgrade-impact-analyzer
+
+      - name: Generate Markdown report
+        if: github.event_name == 'pull_request'
+        run: |
+          upgrade-analyzer analyze \
+            --format markdown \
+            --output report.md
+        continue-on-error: true
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = '';
+
+            try {
+              report = fs.readFileSync('report.md', 'utf8');
+            } catch (e) {
+              report = '⚠️ Could not generate upgrade analysis report.';
+            }
+
+            const header = '## 📦 Upgrade Impact Analysis\n\n';
+            const body = header + report;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c => 
+              c.user.login === 'github-actions[bot]' && 
+              c.body.includes('Upgrade Impact Analysis')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+
+      - name: Check for critical issues
+        if: steps.analyze.outcome == 'failure'
+        run: |
+          echo "::error::Critical or high-risk dependency upgrades detected!"
+          exit 1
+
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Security Vulnerability Scan
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: |
+          pip install upgrade-impact-analyzer pip-audit
+
+      - name: Run security scan
+        run: |
+          upgrade-analyzer scan-security \
+            --output security-report.json
+        continue-on-error: true
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security-report.json

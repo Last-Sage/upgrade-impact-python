@@ -1,0 +1,43 @@
+[cache]
+enabled = true
+directory = "~/.upgrade_analyzer/cache"
+pypi_ttl_hours = 24
+changelog_ttl_days = 7
+
+[risk_scoring]
+# Weights for risk calculation (must sum to 1.0)
+semver_weight = 0.3
+usage_weight = 0.5
+changelog_weight = 0.2
+
+# Threshold scores for severity levels
+[risk_scoring.thresholds]
+critical = 80
+high = 60
+medium = 30
+low = 0
+
+[analysis]
+scan_git_ignored = false
+include_transitive = true
+max_depth = null  # null = unlimited
+
+# Patterns to exclude from code scanning
+exclude_patterns = [
+    "**/venv/**",
+    "**/.venv/**",
+    "**/env/**",
+    "**/node_modules/**",
+    "**/__pycache__/**",
+    "**/.git/**",
+]
+
+[output]
+color = true
+markdown_report = true
+terminal_table = true
+sort_by = "risk_score"  # or "name", "severity"
+
+[ci]
+fail_on_critical = true
+fail_on_high_risk = true

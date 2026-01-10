@@ -1,0 +1,40 @@
+# Pre-commit configuration for Upgrade Impact Analyzer
+#
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Upgrade Impact Analysis
+  - repo: local
+    hooks:
+      - id: upgrade-impact-analyzer
+        name: Upgrade Impact Analysis
+        entry: upgrade-analyzer analyze --check-only --format terminal
+        language: system
+        pass_filenames: false
+        files: (requirements.*\.txt|pyproject\.toml|Pipfile|poetry\.lock)$
+        stages: [commit]
+        verbose: true
+
+      - id: upgrade-security-scan
+        name: Security Vulnerability Scan
+        entry: upgrade-analyzer scan-security
+        language: system
+        pass_filenames: false
+        files: (requirements.*\.txt|pyproject\.toml|Pipfile|poetry\.lock)$
+        stages: [push]
+
+  # Standard Python linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.8
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-toml

@@ -1,0 +1,114 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "upgrade-impact-analyzer"
+version = "1.0.0"
+description = "Intelligent dependency upgrade risk analyzer with usage-centric scoring"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    {name = "Upgrade Analyzer Team"}
+]
+keywords = [
+    "dependencies",
+    "upgrade",
+    "risk-analysis",
+    "static-analysis",
+    "pypi",
+    "security",
+    "vulnerability",
+    "ci",
+    "devops",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Security",
+]
+
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "griffe>=0.42.0",
+    "httpx>=0.27.0",
+    "toml>=0.10.2",
+    "packaging>=24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "mypy>=1.8.0",
+    "ruff>=0.2.0",
+    "pre-commit>=3.6.0",
+    "respx>=0.20.0",
+]
+
+security = [
+    "pip-audit>=2.7.0",
+]
+
+yaml = [
+    "pyyaml>=6.0.0",
+]
+
+all = [
+    "upgrade-impact-analyzer[dev,security,yaml]",
+]
+
+[project.scripts]
+upgrade-analyzer = "upgrade_analyzer.cli:app"
+
+[project.urls]
+Documentation = "https://github.com/example/upgrade-impact-analyzer#readme"
+Issues = "https://github.com/example/upgrade-impact-analyzer/issues"
+Source = "https://github.com/example/upgrade-impact-analyzer"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/upgrade_analyzer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+source = ["src/upgrade_analyzer"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "Q", "UP", "C4", "SIM"]
+ignore = ["E501"]  # Line too long - handled by formatter
