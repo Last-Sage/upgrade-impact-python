@@ -448,5 +448,5 @@ max_risk_score = 70
 require_approval = true
 require_ticket = true
 '''
-    output_path.write_text(content)
+    output_path.write_text(content, encoding="utf-8")
     logger.info(f"Created example policies file: {output_path}")

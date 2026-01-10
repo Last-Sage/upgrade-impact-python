@@ -454,7 +454,7 @@ def scan_security(
     console.print(f"\n[bold]Summary:[/bold] {vulnerable_count} vulnerable packages found")
     
     if output and results:
-        output.write_text(json.dumps(results, indent=2))
+        output.write_text(json.dumps(results, indent=2), encoding="utf-8")
         console.print(f"[green]Results saved to: {output}[/green]")
     
     if vulnerable_count > 0:
@@ -577,7 +577,7 @@ def health(
     report = scorer.generate_report(metrics_list)
     
     if output:
-        output.write_text(report)
+        output.write_text(report, encoding="utf-8")
         console.print(f"\n[green]✅ Health report saved to: {output}[/green]")
 
 
@@ -714,7 +714,7 @@ def monorepo(
     report = analyzer.generate_report(results)
     
     if output:
-        output.write_text(report)
+        output.write_text(report, encoding="utf-8")
         console.print(f"\n[green]✅ Monorepo report saved to: {output}[/green]")
 
 
