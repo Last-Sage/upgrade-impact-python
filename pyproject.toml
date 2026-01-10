@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [
-    {name = "Upgrade Analyzer Team"}
+    {name = "Last Sage"}
 ]
 keywords = [
     "dependencies",
@@ -71,9 +71,9 @@ all = [
 upgrade-analyzer = "upgrade_analyzer.cli:app"
 
 [project.urls]
-Documentation = "https://github.com/example/upgrade-impact-analyzer#readme"
-Issues = "https://github.com/example/upgrade-impact-analyzer/issues"
-Source = "https://github.com/example/upgrade-impact-analyzer"
+Documentation = "https://github.com/Last-Sage/upgrade-impact-python#readme"
+Issues = "https://github.com/Last-Sage/upgrade-impact-python/issues"
+Source = "https://github.com/Last-Sage/upgrade-impact-python"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/upgrade_analyzer"]
