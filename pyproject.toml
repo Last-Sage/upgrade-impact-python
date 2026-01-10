@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "upgrade-impact-analyzer"
-version = "1.0.0"
+version = "1.0.1b1"
 description = "Intelligent dependency upgrade risk analyzer with usage-centric scoring"
 readme = "README.md"
 requires-python = ">=3.12"
