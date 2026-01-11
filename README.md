@@ -13,6 +13,7 @@ Upgrade Impact Analyzer goes beyond simple SemVer rules. It analyzes **your actu
 | ------------------------- | ---------------------------------------------------------- |
 | **Usage-Centric Scoring** | Risk scored by actual code usage, not just version numbers |
 | **AI-Powered Analysis**   | LLM changelog summarization (OpenAI/Anthropic)             |
+| **Conflict Detection**    | Detect incompatible upgrades before they break your code   |
 | **Security Scanning**     | CVE detection via pip-audit and OSV.dev                    |
 | **Health Scoring**        | A-F grades based on maintenance, popularity, quality       |
 | **SBOM Generation**       | CycloneDX 1.5 and SPDX 2.3 formats                         |
@@ -30,6 +31,9 @@ pip install upgrade-impact-analyzer
 
 # Analyze your project
 upgrade-analyzer analyze
+
+# Check for conflicts before upgrading
+upgrade-analyzer conflicts
 
 # With security scanning
 upgrade-analyzer analyze --security
@@ -66,6 +70,21 @@ upgrade-analyzer analyze                              # Auto-detect files
 upgrade-analyzer analyze --project /path/to/project   # Specify path
 upgrade-analyzer analyze --format sarif --output results.sarif  # SARIF output
 ```
+
+### 🔍 Conflict Detection
+
+Detect incompatible dependencies **before** upgrading:
+
+```bash
+upgrade-analyzer conflicts                    # Check all upgrades
+upgrade-analyzer conflicts --output conflicts.md  # Save report
+```
+
+Features:
+
+- Forward conflicts (X requires Y>=2.0, but 1.x installed)
+- Reverse conflicts (A depends on B<3.0, can't upgrade B to 3.x)
+- Cross-upgrade conflicts (upgrading X and Y together breaks)
 
 ### 🤖 AI-Powered Analysis
 
@@ -128,6 +147,7 @@ require_approval = true
 | Command         | Description                          |
 | --------------- | ------------------------------------ |
 | `analyze`       | Analyze upgrade risks (main command) |
+| `conflicts`     | Detect dependency conflicts          |
 | `sbom`          | Generate SBOM (CycloneDX/SPDX)       |
 | `health`        | Calculate health scores (A-F grades) |
 | `licenses`      | Audit dependency licenses            |
@@ -149,6 +169,25 @@ require_approval = true
 | `OPENAI_API_KEY`    | OpenAI API key for AI analysis          |
 | `ANTHROPIC_API_KEY` | Anthropic API key for AI analysis       |
 
+## 🧪 Running Tests
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=upgrade_analyzer
+
+# Run specific test file
+pytest tests/test_risk_scorer.py -v
+
+# Run with verbose output
+pytest -v --tb=short
+```
+
 ## 🔄 GitHub Actions
 
 ```yaml
@@ -159,6 +198,29 @@ require_approval = true
 - uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: results.sarif
+```
+
+## 🏗️ Architecture
+
+```
+upgrade_analyzer/
+├── analyzer.py          # Main orchestrator
+├── cli.py               # Typer CLI commands
+├── conflict_detector.py # Dependency conflict detection
+├── http_client.py       # Async HTTP with retry
+├── cache.py             # Thread-safe caching
+├── health.py            # Health scoring (A-F)
+├── sbom.py              # SBOM & license auditing
+├── enterprise.py        # Monorepo & policies
+├── intelligence/        # Risk analysis
+│   ├── api_differ.py   # API diffing (griffe)
+│   ├── risk_scorer.py  # Risk calculation
+│   ├── security.py     # CVE detection
+│   └── llm_analyzer.py # AI analysis
+├── parsers/             # Dependency parsers
+├── reporters/           # Output formatters
+└── scanner/             # Code analysis
+    └── ast_analyzer.py  # AST-based usage detection
 ```
 
 ## 📄 License

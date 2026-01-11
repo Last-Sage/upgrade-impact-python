@@ -1,10 +1,13 @@
 """Configuration management for Upgrade Impact Analyzer."""
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 import toml
+
+logger = logging.getLogger(__name__)
 
 
 class Config:
@@ -27,8 +30,11 @@ class Config:
             try:
                 file_config = toml.load(self.config_file)
                 config.update(file_config)
-            except Exception:
-                pass  # Use defaults if config file is invalid
+                logger.debug(f"Loaded config from {self.config_file}")
+            except toml.TomlDecodeError as e:
+                logger.warning(f"Invalid TOML in config file {self.config_file}: {e}")
+            except Exception as e:
+                logger.warning(f"Error loading config file {self.config_file}: {e}")
         
         return config
     
@@ -165,8 +171,12 @@ def load_ignore_file(project_root: Path) -> set[str]:
                 if package_name:
                     ignored.add(package_name)
     
-    except Exception:
-        pass  # Silently fail if file can't be read
+    except FileNotFoundError:
+        return ignored  # File doesn't exist, not an error
+    except PermissionError as e:
+        logger.warning(f"Cannot read ignore file {ignore_file}: {e}")
+    except Exception as e:
+        logger.warning(f"Error parsing ignore file {ignore_file}: {e}")
     
     return ignored
 

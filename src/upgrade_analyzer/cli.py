@@ -819,6 +819,107 @@ def init_policies(
     console.print("[dim]Edit this file to customize your risk policies[/dim]")
 
 
+@app.command()
+def conflicts(
+    project_path: Path = typer.Option(
+        ".",
+        "--project",
+        "-p",
+        help="Path to project directory",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Path to output markdown file",
+    ),
+) -> None:
+    """Detect dependency conflicts before upgrading."""
+    
+    from upgrade_analyzer.parsers.base import DependencyParser
+    from upgrade_analyzer.conflict_detector import ConflictDetector
+    from upgrade_analyzer.resolver import DependencyResolver
+    
+    project_path = project_path.resolve()
+    
+    # Auto-detect and parse dependencies
+    detected = DependencyParser.auto_detect_in_directory(project_path)
+    if not detected:
+        console.print("[red]Error: No dependency file found[/red]")
+        raise typer.Exit(1)
+    
+    parser_class = DependencyParser.detect_parser(detected[0])
+    parser = parser_class(detected[0])
+    dependencies = parser.parse()
+    
+    console.print(f"\n[bold cyan]🔍 Checking conflicts for {len(dependencies)} packages...[/bold cyan]\n")
+    
+    detector = ConflictDetector()
+    resolver = DependencyResolver()
+    
+    # Get upgrade targets
+    upgrades = []
+    for dep in dependencies:
+        target = resolver._fetch_latest_version(dep.name)
+        if target and target != dep.current_version:
+            upgrades.append((dep.name, dep.current_version, target))
+    
+    if not upgrades:
+        console.print("[green]✅ All packages are up to date![/green]")
+        raise typer.Exit(0)
+    
+    console.print(f"[dim]Analyzing {len(upgrades)} potential upgrades...[/dim]\n")
+    
+    # Detect conflicts
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("[green]Checking...", total=len(upgrades))
+        
+        reports = []
+        for package, from_ver, to_ver in upgrades:
+            report = detector.detect_conflicts(package, from_ver, to_ver, dependencies)
+            reports.append(report)
+            
+            if report.conflicts:
+                console.print(f"  [red]✗[/red] {package}: {len(report.conflicts)} conflict(s)")
+            else:
+                console.print(f"  [green]✓[/green] {package}: compatible")
+            
+            progress.advance(task)
+    
+    detector.close()
+    resolver.close()
+    
+    # Summary
+    total_conflicts = sum(len(r.conflicts) for r in reports)
+    
+    if total_conflicts == 0:
+        console.print(f"\n[green]✅ No conflicts detected! All upgrades are safe.[/green]")
+    else:
+        console.print(f"\n[red]⚠️ {total_conflicts} conflicts found![/red]")
+        
+        for report in reports:
+            if report.conflicts:
+                console.print(f"\n[bold]{report.package}[/bold] ({report.from_version} → {report.to_version}):")
+                for conflict in report.conflicts:
+                    console.print(f"  • {conflict.reason}")
+    
+    # Generate report
+    markdown_report = detector.generate_conflict_report(reports)
+    
+    if output:
+        output.write_text(markdown_report, encoding="utf-8")
+        console.print(f"\n[green]📄 Report saved to: {output}[/green]")
+    
+    if total_conflicts > 0:
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
 

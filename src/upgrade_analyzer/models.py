@@ -191,8 +191,18 @@ class UpgradeReport:
     changelog_entries: list[ChangelogEntry]
     recommendation: UpgradeRecommendation | None = None
     usage_summary: dict[str, int] = field(default_factory=dict)
+    conflict_warnings: list[str] = field(default_factory=list)
     
     @property
     def is_safe(self) -> bool:
         """Check if upgrade is considered safe."""
-        return self.risk_score.severity in {Severity.LOW, Severity.MEDIUM}
+        return (
+            self.risk_score.severity in {Severity.LOW, Severity.MEDIUM}
+            and not self.conflict_warnings
+        )
+    
+    @property
+    def has_conflicts(self) -> bool:
+        """Check if there are dependency conflicts."""
+        return len(self.conflict_warnings) > 0
+
