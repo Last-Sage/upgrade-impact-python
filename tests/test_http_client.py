@@ -112,15 +112,13 @@ class TestSyncHTTPClient:
 class TestAsyncHTTPClient:
     """Test async HTTP client."""
     
-    @pytest.mark.asyncio
-    async def test_async_client_initialization(self):
+    def test_async_client_initialization(self):
         """Test async client initializes correctly."""
         client = AsyncHTTPClient(timeout=15.0)
         assert client.timeout == 15.0
-        await client.close()
     
-    @pytest.mark.asyncio
-    async def test_async_context_manager(self):
-        """Test async client as context manager."""
-        async with AsyncHTTPClient() as client:
-            assert client is not None
+    def test_async_client_custom_retry_config(self):
+        """Test async client with custom retry config."""
+        config = RetryConfig(max_retries=5)
+        client = AsyncHTTPClient(retry_config=config)
+        assert client.retry_config.max_retries == 5

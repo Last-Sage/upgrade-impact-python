@@ -110,8 +110,8 @@ data = requests.post("url3", json={})
         
         # Each usage should have line numbers
         for usage in usages:
-            assert usage.line_numbers, f"Usage should have line numbers"
-            print(f"✅ Found usage at line(s): {usage.line_numbers}")
+            assert usage.line_number, f"Usage should have line number"
+            print(f"✅ Found usage at line: {usage.line_number}")
     
     def test_handles_aliased_imports(self, tmp_path: Path):
         """Verify alias tracking: 'import X as Y' is properly resolved."""
